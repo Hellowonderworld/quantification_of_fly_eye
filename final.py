@@ -421,18 +421,34 @@ class NucleusQuantApp(tk.Tk):
         if not self.initial_results or not self.output_dir:
             return
         file_name = self.image_files[self.current_file_idx].stem
-        results = [r for r in self.initial_results if r['Nucleus_ID'] not in self.exclude_ids]
-        self.all_results.extend(results)
+        
+        # 1. Filter out excluded nuclei AND add 'File_Name' to each individual row
+        filtered_results = []
+        for r in self.initial_results:
+            if r['Nucleus_ID'] not in self.exclude_ids:
+                # This prepends 'File_Name' as the first column for the detailed CSV
+                nucleus_record = {'File_Name': file_name, **r}
+                filtered_results.append(nucleus_record)
+                
+        # Append the detailed rows to the global list (for all_quantification.csv)
+        self.all_results.extend(filtered_results)
+        
+        # 2. Build the summary dictionary (for summary_quantification.csv)
+        # It already includes 'File_Name' as its first column key!
         summary = {
             'File_Name': file_name,
-            'Total_Nuclei': len(results),
-            'Average_Area_pixels': np.mean([r['Area_pixels'] for r in results]) if results else 0,
-            'Average_Area_um2': np.mean([r['Area_um2'] for r in results]) if results else 0,
-            'Average_Mean_Intensity': np.mean([r['Mean_Intensity'] for r in results]) if results else 0,
-            'Average_RawIntDen': np.mean([r['RawIntDen'] for r in results]) if results else 0,
-            'Average_IntDen': np.mean([r['IntDen'] for r in results]) if results else 0,
+            'Total_Nuclei': len(filtered_results),
+            'Average_Area_pixels': np.mean([r['Area_pixels'] for r in filtered_results]) if filtered_results else 0,
+            'Average_Area_um2': np.mean([r['Area_um2'] for r in filtered_results]) if filtered_results else 0,
+            'Average_Mean_Intensity': np.mean([r['Mean_Intensity'] for r in filtered_results]) if filtered_results else 0,
+            'Average_RawIntDen': np.mean([r['RawIntDen'] for r in filtered_results]) if filtered_results else 0,
+            'Average_IntDen': np.mean([r['IntDen'] for r in filtered_results]) if filtered_results else 0,
         }
+        
+        # Append the summary row to the global summary list
         self.all_files_summary.append(summary)
+        
+        # 3. Save the txt log of excluded IDs if there are any
         if self.exclude_ids:
             try:
                 with open(Path(self.output_dir) / f"{file_name}_excluded_ids.txt", 'w') as f:
@@ -479,6 +495,28 @@ class NucleusQuantApp(tk.Tk):
         else:
             self.save_current_results()
             self.finalize_processing()
+    def clear_all(self):
+        """Clears all accumulated data and resets the tables."""
+        if messagebox.askyesno("Confirm", "Are you sure you want to clear all accumulated results and summaries?"):
+            # Reset data structures
+            self.all_results = []
+            self.all_files_summary = []
+            self.initial_results = []
+            self.exclude_ids = []
+            
+            # Clear Results Table
+            for item in self.results_table.get_children():
+                self.results_table.delete(item)
+                
+            # Clear Summary Table
+            for item in self.summary_table.get_children():
+                self.summary_table.delete(item)
+            
+            # Clear Image Canvas
+            self.canvas.delete("all")
+            self.photo = None
+            
+            messagebox.showinfo("Cleared", "All data has been cleared.")
 
 if __name__ == "__main__":
     app = NucleusQuantApp()
